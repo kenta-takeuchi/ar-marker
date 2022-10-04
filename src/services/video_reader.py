@@ -17,18 +17,16 @@ class VideoReader:
         self.parameters = aruco.DetectorParameters_create()
 
     def execute(self):
-        with open(self.output_path, mode='a') as f:
+        """
+            カメラを起動し、指定したar_marker
+        """
+        while True:
+            markers, frame = self._read_mark_id_points()  # フレームを取得
+            cv2.imshow('camera', frame)  # フレームを画面に表示
 
-            while True:
-                markers, frame = self._read_mark_id_points()  # フレームを取得
-                [f.write(marker.show()) for marker in markers]
-                cv2.imshow('camera', frame)  # フレームを画面に表示
-
-                # キー操作があればwhileループを抜ける
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-
-                time.sleep(0.3)
+            # キー操作があればwhileループを抜ける
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
         # カメラオブジェクトとウィンドウの解放
         self.camera.release()
@@ -46,14 +44,18 @@ class VideoReader:
         if ids is None:
             return [], frame
 
-        read_ar_marker_points = []
-        read_ids = np.ravel(ids)
+        with open(self.output_path, mode='a') as f:
+            read_ar_marker_points = []
+            read_ids = np.ravel(ids)
 
-        for read_id in read_ids:
-            if read_id in self.ar_marker_ids:
-                index = np.where(ids == read_id)[0][0]  # num_id が格納されているindexを抽出
-                corner_points = corners[index][0]
-                ar_marker_point = ArMarkerPoint(read_id, corner_points)
-                read_ar_marker_points.append(ar_marker_point)
+            for read_id in read_ids:
+                if read_id in self.ar_marker_ids:
+                    index = np.where(ids == read_id)[0][0]
+                    corner_points = corners[index][0]
+                    ar_marker_point = ArMarkerPoint(read_id, corner_points)
+                    read_ar_marker_points.append(ar_marker_point)
 
-        return reversed(read_ar_marker_points), frame
+            read_ar_marker_points = sorted(read_ar_marker_points)
+            [f.write(marker.show()) for marker in read_ar_marker_points]
+
+        return read_ar_marker_points, frame

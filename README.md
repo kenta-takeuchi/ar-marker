@@ -1,24 +1,33 @@
 # 使い方
-## 仮想環境の作成
+## 仮想環境の設定
+#### 仮想環境の作成
+```
 python -m venv env
+```
 
-## 仮想環境の有効化
-### windows
+### 仮想環境の有効化
+#### windows
+```
 .env\Scripts\activate.bat
+```
 
-### mac
+#### mac
+```
 source env/bin/activate
+```
 
 ## ライブラリのインストール
+```
 pip install -r requirements.txt
+```
 
 ## 実行
-### カメラを起動してARマーカーの認識
+### アプリを起動
+```
 python src/main.py
+```
+カメラにARマーカーを認識されるとログファイル（read_ar_marker_logs.txt）に吐き出される
 
-### ログの
-read_ar_marker_logs.txtにログが吐き出される
-
-### カメラの停止
+### アプリの停止
 キーボードの「q」を押す
 

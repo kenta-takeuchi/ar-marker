@@ -8,7 +8,7 @@ python -m venv env
 ### 仮想環境の有効化
 #### windows
 ```
-.env\Scripts\activate.bat
+.\env\Scripts\activate.bat
 ```
 
 #### mac

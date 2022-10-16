@@ -1,2 +1,7 @@
+altgraph==0.17.3
+macholib==1.16.2
 numpy==1.23.3
 opencv-contrib-python==4.6.0.66
+pyinstaller==5.5
+pyinstaller-hooks-contrib==2022.10
+pyserial==3.5

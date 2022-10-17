@@ -7,28 +7,30 @@ import datetime
 import math
 
 from models.ar_marker import ArMarkerPoint
+from .serial_sender import SerialSender
 
-w_h = 320
-h_h = 240
-mazin = 50
-hi_limit = 350
+W_H = 320
+H_H = 240
+MARGIN = 50
+HEIGHT_LIMIT = 350
 
-font = cv2.FONT_HERSHEY_SIMPLEX
-position = (10, 450)
-fontScale = 2
-fontColor = (255, 255, 0)
+FONT = cv2.FONT_HERSHEY_SIMPLEX
+POSITION = (10, 450)
+FONT_SCALE = 2
+FONT_COLOR = (255, 255, 0)
 
 
 class VideoReader:
     def __init__(self, camera_id):
         self.camera = cv2.VideoCapture(camera_id)
+        self.serial_sender = SerialSender()
+
+        self.available_point_counts = [1, 4]
 
         # aruco設定
         self.ar_marker_ids = [0, 2, 3, 4, 5, 6]
-        # self.output_path = './read_ar_marker_logs.txt'
         self.output_path = "./read_ar_marker_logs.csv"
         self.dict_aruco = aruco.Dictionary_get(aruco.DICT_APRILTAG_36h11)
-        # self.dict_aruco = aruco.Dictionary_get(aruco.DICT_4X4_50)
         self.parameters = aruco.DetectorParameters_create()
 
     def execute(self):
@@ -37,10 +39,12 @@ class VideoReader:
         """
         while True:
             markers, frame = self._read_mark_id_points()  # フレームを取得
-            cv2.line(frame, (0, hi_limit), (640, hi_limit), (0, 0, 255), 1)
-            cv2.line(frame, (w_h, 0), (w_h, 480), (255, 0, 0), 1)
-            cv2.line(frame, (w_h + mazin, 0), (w_h + mazin, 480), (0, 255, 0), 2)
-            cv2.line(frame, (w_h - mazin, 0), (w_h - mazin, 480), (0, 255, 0), 2)
+            self._show_line(frame)  # ラインを表示
+
+            # 読み取ったar_markerの数が有効数である場合、シリアル通信を送信する
+            if self._is_available_point_counts(markers):
+                self._send_serial_by_ar_marker_points(markers)
+
             cv2.imshow("camera", frame)  # フレームを画面に表示
 
             # キー操作があればwhileループを抜ける
@@ -49,7 +53,24 @@ class VideoReader:
 
         # カメラオブジェクトとウィンドウの解放
         self.camera.release()
+        self.serial_sender.close()
         cv2.destroyAllWindows()
+
+    def _send_serial_by_ar_marker_points(self, read_ar_marker_points):
+        """読み取ったar_markerのidに応じてシリアル通信を送信する"""
+        if len(read_ar_marker_points) == 1:
+            self._send_serial_when_single_ar_marker_id(read_ar_marker_points[0])
+        if len(read_ar_marker_points) == 4:
+            self._send_serial_when_multi_ar_marker_points(read_ar_marker_points)
+
+        return read_ar_marker_points, frame
+
+    @staticmethod
+    def _show_line(frame):
+        cv2.line(frame, (0, HEIGHT_LIMIT), (640, HEIGHT_LIMIT), (0, 0, 255), 1)
+        cv2.line(frame, (W_H, 0), (W_H, 480), (255, 0, 0), 1)
+        cv2.line(frame, (W_H + MARGIN, 0), (W_H + MARGIN, 480), (0, 255, 0), 2)
+        cv2.line(frame, (W_H - MARGIN, 0), (W_H - MARGIN, 480), (0, 255, 0), 2)
 
     def _read_mark_id_points(self):
         """
@@ -57,111 +78,93 @@ class VideoReader:
         """
         ret, frame = self.camera.read()
         gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-
-        corners, ids, rejected_img_points = aruco.detectMarkers(
-            gray, self.dict_aruco, parameters=self.parameters
-        )
+        corners, ids, rejected_img_points = aruco.detectMarkers(gray, self.dict_aruco, parameters=self.parameters)
 
         if ids is None:
             return [], frame
 
-        with open(self.output_path, mode="a") as f:
-            read_ar_marker_points = []
-            read_ids = np.ravel(ids)
+        read_ids = np.ravel(ids)
 
-            if len(read_ids) != 4 and len(read_ids) != 1:
-                return [], frame
+        if not self._is_available_point_counts(read_ids):
+            return [], frame
 
-            for read_id in read_ids:
-                index = np.where(ids == read_id)[0][0]
-                corner_points = corners[index][0]
-                ar_marker_point = ArMarkerPoint(read_id, corner_points)
+        read_ar_marker_points = []
 
-                read_ar_marker_points.append(ar_marker_point)
+        for read_id in read_ids:
+            index = np.where(ids == read_id)[0][0]
+            corner_points = corners[index][0]
+            ar_marker_point = ArMarkerPoint(read_id, corner_points)
 
-                # if read_id in self.ar_marker_ids
-                #     index = np.where(ids == read_id)[0][0]
-                #     corner_points = corners[index][0]
-                #     ar_marker_point = ArMarkerPoint(read_id, corner_points)
+            read_ar_marker_points.append(ar_marker_point)
 
-                #     read_ar_marker_points.append(ar_marker_point)
-
-            read_ar_marker_points = sorted(read_ar_marker_points)
-            now = datetime.datetime.now()
-
-            ar_marker_ids = [marker.ar_marker_id for marker in read_ar_marker_points]
-            ser_command = "".join(ar_marker_ids)
-            csv_data = f'{now.strftime("%Y/%m/%d")},{now.strftime("%H:%M:%S")},{",".join(ar_marker_ids)}\n'
-
-            c_len = 16 - len(ser_command)
-            out_command = ser_command + "0" * c_len
-
-            if len(read_ids) == 4:
-                print(out_command)
-                f.write(csv_data)
-                time.sleep(5)
-                # シリアル０出力
-            elif len(read_ids) == 1:
-                # 底辺
-                bottom = corner_points[0][0] - corner_points[1][0]  # 左上X-右上X
-                c_w = corner_points[1][0] + bottom / 2
-                # 高さ
-                height = corner_points[1][1] - corner_points[0][1]  # 右上ｙ-左上ｙ
-                c_h = corner_points[0][1] + height / 2
-                m_h = corner_points[0][1] - corner_points[3][1]  # 左上ｙ-左下ｙ
-                rote_h = corner_points[0][0] - corner_points[3][0]  # 左上X-左下X
-
-                # [0][0]左上ｘ[0][1]左上y
-                # [1][0]右上ｘ[1][1]右上y
-                # [2][0]右下ｘ[2][1]右下y
-                # [3][0]左下ｘ[3][1]左上y
-
-                # 底辺と高さから角度を求める
-                angle = round(math.atan(height / bottom) * 180 / math.pi)
-                if angle > 3:
-                    command = 'l'
-                elif angle < -3:
-                    command = 'r'
-                else:
-                    command = ' '
-
-                # 底辺と高さから斜辺を求める
-                hypotenuse = round(math.sqrt(math.pow(bottom, 2) + math.pow(height, 2)))
-                if hi_limit > c_h:
-                    if c_w > w_h + mazin:
-                        point_w = "L_turn"
-                        cv2.putText(frame, 'L_turn',
-                                    position,
-                                    font,
-                                    fontScale,
-                                    fontColor, 3, cv2.LINE_AA, True)
-                    elif c_w < w_h - mazin:
-                        point_w = "R_turn"
-                        cv2.putText(frame, 'R_turn',
-                                    position,
-                                    font,
-                                    fontScale,
-                                    fontColor, 3, cv2.LINE_AA, True)
-                    else:
-                        cv2.putText(frame, 'center',
-                                    position,
-                                    font,
-                                    fontScale,
-                                    fontColor, 3, cv2.LINE_AA, True)
-                        point_w = "center"
-                else:
-                    cv2.putText(frame, 'STOP',
-                                position,
-                                font,
-                                fontScale,
-                                fontColor, 3, cv2.LINE_AA, True)
-                    point_w = "STOP"
-
-                print(angle, hypotenuse, point_w)
-                # print(hypotenuse)
-                # シリアル１出力
-
-            else:
-                return [], frame
+        read_ar_marker_points = sorted(read_ar_marker_points)
 
         return read_ar_marker_points, frame
+
+    @staticmethod
+    def _calc_from_points(ar_marker_point: ArMarkerPoint):
+        # 底辺
+        width = ar_marker_point.left_top[0] - ar_marker_point.right_top[0]  # 左上X - 右上X
+        center_width = ar_marker_point.left_top[1][0] + bottom / 2
+        # 高さ
+        height = ar_marker_point.right_top[1] - ar_marker_point.left_top[1]  # 右上ｙ-左上ｙ
+        center_height = ar_marker_point.left_top[1] + height / 2
+
+        # 底辺と高さから角度を求める
+        angle = round(math.atan(height / width) * 180 / math.pi)
+        # 底辺と高さから斜辺を求める
+        hypotenuse = round(math.sqrt(math.pow(bottom, 2) + math.pow(height, 2)))
+
+        return center_width, center_height, angle, hypotenuse
+
+    @staticmethod
+    def _get_command_by_angle(angle):
+        """ar_markerの角度からコマンドを取得する"""
+        if angle > 3:
+            command = 'l'
+        elif angle < -3:
+            command = 'r'
+        else:
+            command = ' '
+
+        return command
+
+    def _is_available_point_counts(self, ar_marker_points):
+        """ar_markerのidが読み取り数が有効数であるかどうかを判定する"""
+        return len(ar_marker_points) in self.available_point_counts
+
+    def _send_serial_when_single_ar_marker_id(self, ar_marker_point):
+        center_width, center_height, angle, hypotenuse = self._calc_from_points(ar_marker_point)
+        command = self._get_command_by_angle(angle)
+
+        if HEIGHT_LIMIT > center_height:
+            if center_width > W_H + MARGIN:
+                point_w = "L_TURN"
+            elif center_width < W_H - MARGIN:
+                point_w = "R_TURN"
+            else:
+                point_w = "CENTER"
+        else:
+            point_w = "STOP"
+
+        cv2.putText(frame, point_w,
+                    POSITION,
+                    FONT,
+                    FONT_SCALE,
+                    FONT_COLOR, 3, cv2.LINE_AA, True)
+
+        print(angle, hypotenuse, point_w)
+
+    def _send_serial_when_multi_ar_marker_points(self, ar_marker_points):
+        ar_marker_ids = [marker.ar_marker_id for marker in ar_marker_points]
+        ser_command = "".join(ar_marker_ids)
+        with open(self.output_path, mode="a") as f:
+            now = datetime.datetime.now()
+            row_data = f'{now.strftime("%Y/%m/%d")},{now.strftime("%H:%M:%S")},{",".join(ar_marker_ids)}\n'
+            f.write(row_data)
+
+        c_len = 16 - len(ser_command)
+        out_command = ser_command + "0" * c_len
+        # self.serial_sender(out_command)  # シリアル通信で送信
+        pritn(out_command)
+

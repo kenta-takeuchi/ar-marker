@@ -43,7 +43,12 @@ class VideoReader:
 
             # 読み取ったar_markerの数が有効数である場合、シリアル通信を送信する
             if self._is_available_point_counts(markers):
-                self._send_serial_by_ar_marker_points(markers)
+                point_w = self._send_serial_by_ar_marker_points(markers)
+                cv2.putText(frame, point_w,
+                            POSITION,
+                            FONT,
+                            FONT_SCALE,
+                            FONT_COLOR, 3, cv2.LINE_AA, True)
 
             cv2.imshow("camera", frame)  # フレームを画面に表示
 
@@ -59,11 +64,11 @@ class VideoReader:
     def _send_serial_by_ar_marker_points(self, read_ar_marker_points):
         """読み取ったar_markerのidに応じてシリアル通信を送信する"""
         if len(read_ar_marker_points) == 1:
-            self._send_serial_when_single_ar_marker_id(read_ar_marker_points[0])
+            return self._send_serial_when_single_ar_marker_id(read_ar_marker_points[0])
         if len(read_ar_marker_points) == 4:
-            self._send_serial_when_multi_ar_marker_points(read_ar_marker_points)
+            return self._send_serial_when_multi_ar_marker_points(read_ar_marker_points)
 
-        return read_ar_marker_points, frame
+        return ''
 
     @staticmethod
     def _show_line(frame):
@@ -105,7 +110,7 @@ class VideoReader:
     def _calc_from_points(ar_marker_point: ArMarkerPoint):
         # 底辺
         width = ar_marker_point.left_top[0] - ar_marker_point.right_top[0]  # 左上X - 右上X
-        center_width = ar_marker_point.left_top[1][0] + bottom / 2
+        center_width = ar_marker_point.left_top[0] + width / 2
         # 高さ
         height = ar_marker_point.right_top[1] - ar_marker_point.left_top[1]  # 右上ｙ-左上ｙ
         center_height = ar_marker_point.left_top[1] + height / 2
@@ -113,7 +118,7 @@ class VideoReader:
         # 底辺と高さから角度を求める
         angle = round(math.atan(height / width) * 180 / math.pi)
         # 底辺と高さから斜辺を求める
-        hypotenuse = round(math.sqrt(math.pow(bottom, 2) + math.pow(height, 2)))
+        hypotenuse = round(math.sqrt(math.pow(width, 2) + math.pow(height, 2)))
 
         return center_width, center_height, angle, hypotenuse
 
@@ -147,16 +152,12 @@ class VideoReader:
         else:
             point_w = "STOP"
 
-        cv2.putText(frame, point_w,
-                    POSITION,
-                    FONT,
-                    FONT_SCALE,
-                    FONT_COLOR, 3, cv2.LINE_AA, True)
-
         print(angle, hypotenuse, point_w)
 
+        return point_w
+
     def _send_serial_when_multi_ar_marker_points(self, ar_marker_points):
-        ar_marker_ids = [marker.ar_marker_id for marker in ar_marker_points]
+        ar_marker_ids = [str(marker.ar_marker_id) for marker in ar_marker_points]
         ser_command = "".join(ar_marker_ids)
         with open(self.output_path, mode="a") as f:
             now = datetime.datetime.now()
@@ -166,5 +167,7 @@ class VideoReader:
         c_len = 16 - len(ser_command)
         out_command = ser_command + "0" * c_len
         # self.serial_sender(out_command)  # シリアル通信で送信
-        pritn(out_command)
+        print(out_command)
+
+        return out_command
 

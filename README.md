@@ -31,3 +31,7 @@ python src/main.py
 ### アプリの停止
 キーボードの「q」を押す
 
+## exeファイル化
+```
+pyinstaller -F -w src/main.py
+```

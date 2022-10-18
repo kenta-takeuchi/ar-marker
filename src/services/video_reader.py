@@ -153,6 +153,7 @@ class VideoReader:
             point_w = "STOP"
 
         print(angle, hypotenuse, point_w)
+        # self.serial_sender.send(point_w)  # TODO serial通信をする時はコメントアウトを解除する
 
         return point_w
 
@@ -166,7 +167,7 @@ class VideoReader:
 
         c_len = 16 - len(ser_command)
         out_command = ser_command + "0" * c_len
-        # self.serial_sender(out_command)  # シリアル通信で送信
+        # self.serial_sender.send(out_command)  # TODO serial通信をする時はコメントアウトを解除する
         print(out_command)
 
         return out_command

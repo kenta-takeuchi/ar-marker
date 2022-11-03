@@ -6,7 +6,8 @@ from .singleton import Singleton
 class SerialSender(Singleton):
     def __init__(self, bitrate=115200, timeout=0.1):
         self.__serial = None
-        # self.connect(bitrate, timeout) # TODO serial通信をする時はコメントアウトを解除する
+        self.output_path = "read_test.csv"
+        self.connect(bitrate, timeout)  # TODO serial通信をする時はコメントアウトを解除する
 
     def connect(self, bitrate=115200, timeout=0.1):
         if self.__serial is None:
@@ -21,3 +22,6 @@ class SerialSender(Singleton):
         if not isinstance(data, (bytes, bytearray)):
             data = data.encode()
         self.__serial.write(data)
+
+    def read(self):
+        return self.__serial.readline()

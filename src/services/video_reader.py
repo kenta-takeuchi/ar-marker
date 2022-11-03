@@ -24,6 +24,7 @@ class VideoReader:
     def __init__(self, camera_id):
         self.camera = cv2.VideoCapture(camera_id)
         self.serial_sender = SerialSender()
+        self.status = 0
 
         self.available_point_counts = [1, 4]
 
@@ -38,17 +39,33 @@ class VideoReader:
         カメラを起動し、指定したar_marker
         """
         while True:
-            markers, frame = self._read_mark_id_points()  # フレームを取得
-            self._show_line(frame)  # ラインを表示
+            line = self.serial_sender.read()
+            if line:
+                l_pow = int(line[10:15])
+                r_pow = float(line[18:23])
 
-            # 読み取ったar_markerの数が有効数である場合、シリアル通信を送信する
-            if self._is_available_point_counts(markers):
-                point_w = self._send_serial_by_ar_marker_points(markers)
-                cv2.putText(frame, point_w,
-                            POSITION,
-                            FONT,
-                            FONT_SCALE,
-                            FONT_COLOR, 3, cv2.LINE_AA, True)
+                with open(output_path, mode="a") as f:
+                    row_data = f'{l_pow},{","},{r_pow}\n'
+                    f.write(row_data)
+
+                self.serial_sender.send(row_data)
+                # self.status = int(read_data)
+
+            markers, frame = self._read_mark_id_points()  # フレームを取得
+            self._show_line(frame)
+
+            if self.status == 0:
+                # 読み取ったar_markerの数が有効数である場合、シリアル通信を送信する
+                if self._is_available_point_counts(markers):
+                    point_w = self._send_serial_by_ar_marker_points(markers)
+                    cv2.putText(frame, point_w,
+                                POSITION,
+                                FONT,
+                                FONT_SCALE,
+                                FONT_COLOR, 3, cv2.LINE_AA, True)
+
+            if self.status == 1:
+                print("status 1")
 
             cv2.imshow("camera", frame)  # フレームを画面に表示
 

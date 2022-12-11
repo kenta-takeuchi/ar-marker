@@ -2,3 +2,5 @@
 *read_ar_marker_logs.txt
 dist/
 build/
+venv
+*.pyc

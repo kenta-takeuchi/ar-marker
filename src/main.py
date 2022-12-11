@@ -1,6 +1,5 @@
-from services import Executor
+from services import ExecutorService
 
 
 if __name__ == '__main__':
-    executor = Executor()
-    executor.execute()
+    ExecutorService().execute()

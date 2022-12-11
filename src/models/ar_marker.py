@@ -1,3 +1,5 @@
+import math
+
 class ArMarkerPoint:
     def __init__(self, ar_marker_id, corner_points):
         self.ar_marker_id = ar_marker_id
@@ -15,3 +17,25 @@ class ArMarkerPoint:
 
     def _corner_points_formatter(self):
         return [self.left_top, self.right_top, self.right_bottom, self.left_bottom]
+
+    def width(self):
+        """左上X - 右上X"""
+        return self.left_top[0] - self.right_top[0]
+
+    def center_width(self):
+        return self.left_top[0] + self.width() / 2
+
+    def height(self):
+        """右上ｙ-左上ｙ"""
+        return self.right_top[1] - self.left_top[1]
+
+    def center_height(self):
+        return self.left_top[1] + self.height() / 2
+
+    def angle(self):
+        """底辺と高さから角度を求める"""
+        return math.atan(self.height() / self.width()) * 180 / math.pi
+
+    def hypotenuse(self):
+        """底辺と高さから斜辺を求める"""
+        return round(math.sqrt(math.pow(self.width(), 2) + math.pow(self.height(), 2)))
